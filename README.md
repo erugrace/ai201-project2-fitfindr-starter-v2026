@@ -41,6 +41,7 @@
 
 <!-- Three or four sentences: what a user asks for, and what they get back. -->
 
+FitFindr helps someone shopping second-hand. They type what they're looking for in plain language, like "vintage graphic tee under $30, size M", and it searches 40 thrift listings for the best match within their size and budget. It then suggests one or two outfits built around that item using clothes they already own, and writes a short social-media caption about the find. If nothing matches, it stops and tells them what to change (broader words, a different size, or a higher price) instead of inventing a result.
 
 
 ---
@@ -97,9 +98,9 @@
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** Regex, in `agent.py::parse_query`. One pattern pulls out a price ceiling (`under $30`, `below $30`, `max $30`), another pulls out a size (`size M`, `size US 8`, `size W30`, or a bare size at the end like `, M`), and whatever is left becomes the description. I chose regex over asking the model because it costs no model call and gives the same answer every time, and when it's wrong the reason is visible in the pattern. The trade-off is that it misses wording it doesn't know: "nothing over thirty dollars" gives no price at all, so the price filter is silently skipped.
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** In this order: `query` (what the user typed) → `parsed` (`description`, `size`, `max_price`) → `search_results` (the full list from `search_listings`) → `selected_item` (the first result, read back out of the session and passed to `suggest_outfit`) → `outfit_suggestion` (read back out and passed with `selected_item` to `create_fit_card`) → `fit_card`. `wardrobe` is set at the start and read by `suggest_outfit`. `error` is set only when the run stops early, and then the fields after it stay `None`.
 
 ---
 
@@ -113,8 +114,37 @@
 **One full query**
 
 ```
-$ python app.py ask '...'
+$ python app.py ask 'vintage graphic tee under $30, size M'
+[1] parse_query
+      in:  vintage graphic tee under $30, size M
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Mesh Long-Sleeve Top — Black, 90s Silk Slip Dress — Floral, Midi Length … +7 more
+      →    10 match(es)
+[3] select_item
+      out: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+[4] suggest_outfit
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      out: Hey friend! That butterfly baby tee is super cute and totally worth $18. Here are two easy ways to style it wi…
+      →    10 wardrobe item(s)
+[5] create_fit_card
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      out: Score! Just hunted down this dreamy Y2K baby tee on depop for only $18, and I am obsessed with the butterfly p…
 
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Hey friend! That butterfly baby tee is super cute and totally worth $18. Here are two easy ways to style it with what you already have:
+
+**Outfit 1: Casual & Edgy**
+Pair the Y2K baby tee with your baggy straight-leg jeans, dark wash. Toss the vintage black denim jacket on top and lace up your black combat boots. Throw on the black crossbody bag to finish the look. It's a great balance of tight top and loose denim!
+
+**Outfit 2: Easy Everyday**
+Keep it comfy by wearing the baby tee with your wide-leg khaki trousers. Slip on your chunky white sneakers, and if it gets chilly, just layer your black cropped zip hoodie right over it. Simple, cute, and ready to go!
+
+  Fit card: Score! Just hunted down this dreamy Y2K baby tee on depop for only $18, and I am obsessed with the butterfly print. I styled it with baggy dark-wash jeans, a vintage black denim jacket, and combat boots for an edgy, balanced streetwear vibe.
+
+0 model calls this session, 2 served from cache
 ```
 
 **The three tools, tested one at a time**
