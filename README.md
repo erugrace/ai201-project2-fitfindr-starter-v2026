@@ -183,16 +183,15 @@ Score! Snagged these vintage Levi's 501 jeans on depop for just $38, and they fi
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* Examples of questions to ask the model to test functions 
+- *What came back:* A detailed set of questions/prompts that tested suituations where answers could be found, not found or tricky
+- *What I changed:* Nothing
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
-
+- *What I asked for:* Explanation of the code I have
+- *What came back:* A detailed explanation explaining blocks of codes or functions i didn't understand
+- *What I changed:* I didn't change anything
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
      Don't fill these in during unit 3.
