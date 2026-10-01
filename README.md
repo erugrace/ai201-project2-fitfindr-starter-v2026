@@ -59,24 +59,25 @@
 
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Searches the 40 thrift listings for items that match the user's keywords. It can also filter by size and a maximum price. No AI model is involved: it counts how many keywords appear in each listing's title, description, category, style tags, colors and brand (when there is one), and ranks the results.
+- **Inputs:** `description` (str), keywords such as `"vintage graphic tee"`. `size` (str or None), such as `"M"`, where None means any size. `max_price` (float or None), in dollars, inclusive, where None means any price.
+- **Returns:** A list of up to 10 listing dicts, best match first. Each dict has `id`, `title`, `description`, `category`, `style_tags` (list), `size`, `condition`, `price` (float), `colors` (list), `brand` (str or None) and `platform`.
+  **Size rule:** each listing's size is split into whole words wherever there's a `/`, a space or a bracket. It matches if one of those words equals the requested size, ignoring upper or lower case. So `"M"` matches `"M"`, `"S/M"` and `"M/L"`, but not `"XL"`, `"W30 L30"` or `"US 9"`. `"One Size"` items match any requested size.
+- **When it has nothing:** It returns an empty list `[]`, never None and never an error. This happens when no listing passes the filters or none shares a keyword with `description`.
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Asks the AI model for one or two outfits built around the thrifted item. When the user has a wardrobe, the outfits use pieces they already own.
+- **Inputs:** `new_item` (dict), one listing dict from `search_listings`. `wardrobe` (dict) with an `"items"` key holding a list of wardrobe dicts. Each wardrobe dict has `id`, `name`, `category`, `colors` (list), `style_tags` (list) and `notes`. The list may be empty.
+- **Returns:** A non-empty string (str) with one or two outfit suggestions. Each one names the new item and the wardrobe pieces it's paired with by their `name`.
+- **When it has nothing:** If `wardrobe["items"]` is empty, it still returns a non-empty string, but with general styling advice for the item (what kinds of pieces and colors go with it) instead of pieces the user owns. It never returns `""` and never raises an error.
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Asks the AI model for a short, social-media-style caption about the find. It reads like a real post, not a product description.
+- **Inputs:** `outfit` (str), the text from `suggest_outfit`. `new_item` (dict), the same listing dict.
+- **Returns:** A string (str) of 2–4 sentences. It mentions the item's title, its price and its platform once each, and describes the vibe. Running it again on the same input gives different wording.
+- **When it has nothing:** If `outfit` is empty or only spaces, it doesn't call the model. It returns the message `"Couldn't write a fit card: no outfit suggestion was provided."` and doesn't raise an error.
 
 ---
 
