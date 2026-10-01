@@ -1,4 +1,3 @@
-import re
 """
 The three FitFindr tools.
 
@@ -21,7 +20,9 @@ That last line is what your loop branches on. "Returns a list" earns nothing —
 the description has to say what is *in* the list.
 """
 
-import config  # noqa: F401 — you'll use this in search_listings
+import re
+
+import config
 from generate import generate
 from utils.data_loader import load_listings
 
@@ -46,6 +47,32 @@ def _size_matches(wanted: str, listing_size: str) -> bool:
     if any(token.startswith("ONE SIZE") for token in listing_tokens):
         return True
     return bool(_size_tokens(wanted) & listing_tokens)
+
+_STYLIST = (
+    "You are a friendly thrift-store stylist. Give practical outfit ideas in "
+    "plain language. Only mention clothes the user owns or the item they're "
+    "considering, never invent pieces they don't have."
+)
+
+def _price(amount: float) -> str:
+    """$24 for whole dollars, $24.50 otherwise — how a person would write it."""
+    return f"${amount:.0f}" if amount == int(amount) else f"${amount:.2f}"
+
+def _describe_item(item: dict) -> str:
+    """One listing as a few lines of text for a prompt."""
+    lines = [
+        f"Title: {item['title']}",
+        f"Category: {item['category']}",
+        f"Colors: {', '.join(item['colors'])}",
+        f"Style: {', '.join(item['style_tags'])}",
+        f"Size: {item['size']}",
+        f"Price: {_price(item['price'])} on {item['platform']}",
+    ]
+    if item.get("brand"):  # most listings have no brand
+        lines.append(f"Brand: {item['brand']}")
+    return "\n".join(lines)
+
+
 # ── Tool 1: search_listings ───────────────────────────────────────────────────
 
 def search_listings(
@@ -99,8 +126,30 @@ def search_listings(
     Test it from a terminal before you move on:
         python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
     """
-    # TODO: replace this with your implementation
-    return []
+    wanted = _keywords(description)
+    scored = []
+
+    for listing in load_listings():
+        if max_price is not None and listing["price"] > max_price:
+            continue
+        if not _size_matches(size, listing["size"]):
+            continue
+
+        # brand is None for most listings, so `or ""` keeps the join from crashing
+        text = " ".join([
+            listing["title"],
+            listing["description"],
+            listing["category"],
+            " ".join(listing["style_tags"]),
+            " ".join(listing["colors"]),
+            listing["brand"] or "",
+        ])
+        score = len(wanted & _keywords(text))
+        if score > 0:
+            scored.append((score, listing))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [listing for _, listing in scored[:config.SEARCH_RESULT_LIMIT]]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
@@ -133,8 +182,36 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    item = _describe_item(new_item)
+    owned = (wardrobe or {}).get("items") or []
+
+    if not owned:
+        prompt = (
+            f"Someone is thinking about buying this thrifted item:\n{item}\n\n"
+            "They haven't saved any of their own clothes, so give general "
+            "styling advice: one or two outfit ideas built around this item, "
+            "naming the kinds of pieces and colors that go with it. "
+            "Keep it under 120 words."
+        )
+    else:
+        pieces = "\n".join(
+            f"- {w['name']} ({w['category']}; colors: {', '.join(w['colors'])})"
+            for w in owned
+        )
+        prompt = (
+            f"Someone is thinking about buying this thrifted item:\n{item}\n\n"
+            f"These are clothes they already own:\n{pieces}\n\n"
+            "Suggest one or two outfits built around the new item. For each "
+            "outfit, name the exact pieces from their wardrobe it uses, "
+            "spelled as they appear in the list. Keep it under 120 words."
+        )
+
+    suggestion = generate(prompt, system=_STYLIST)
+    # the model can come back blank; the Tool Inventory promises never ""
+    return suggestion or (
+        f"Try the {new_item['title']} with simple basics in neutral colors "
+        "and let it be the statement piece."
+    )
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
@@ -173,5 +250,24 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    if not outfit or not outfit.strip():
+        return "Couldn't write a fit card: no outfit suggestion was provided."
+
+    price = _price(new_item["price"])
+    prompt = (
+        f"Write a caption for a social media post about this thrift find:\n"
+        f"{_describe_item(new_item)}\n\n"
+        f"How it's being styled:\n{outfit}\n\n"
+        "Rules:\n"
+        "- Written by the person who just bought it, showing off the find and "
+        "how they styled it. Not the seller, and not a product listing.\n"
+        "- 2 to 4 sentences.\n"
+        f"- Mention the item, the price written exactly as {price}, and "
+        f"{new_item['platform']}, once each.\n"
+        "- Be specific about the vibe of the outfit.\n"
+        "- Return only the caption, with no quotes or hashtag list."
+    )
+    return generate(prompt) or (
+        f"Found this {new_item['title']} for {price} on "
+        f"{new_item['platform']} and I'm already planning the outfit."
+    )
