@@ -60,7 +60,7 @@
 ### `search_listings`
 
 - **What it does:** Finds thrift listings whose text shares keywords with the user's description, optionally filtered by size and maximum price, and ranks them by how many keywords match.
-- **Inputs:** `description` (str), e.g. `"vintage graphic tee"`; `size` (str or None), e.g. `"M"`, where None means any size; `max_price` (float or None), in dollars, inclusive, where None means any price. A size matches when it equals one whole word of the listing's size, ignoring case, so `"M"` matches `"S/M"` but not `"XL"` or `"US 9"`, and `"One Size"` matches any size.
+- **Inputs:** `description` (str), e.g. `"vintage graphic tee"`; `size` (str or None), e.g. `"M"`, where None means any size; `max_price` (float or None), in dollars, inclusive, where None means any price. The listing's size is split at `/`, with anything in brackets ignored, and a size matches when it equals one of those parts exactly, ignoring case: `"M"` matches `"S/M"` but not `"XL"`, `"XL (oversized)"` counts as `"XL"`, shoe sizes need the full `"US 9"`, and `"One Size"` matches any size.
 - **Returns:** A list of up to 10 listing dicts, best match first, each with `id`, `title`, `description`, `category`, `style_tags` (list), `size`, `condition`, `price` (float), `colors` (list), `brand` (str or None) and `platform`.
 - **When it has nothing:** An empty list `[]`, never None and never an error.
 
