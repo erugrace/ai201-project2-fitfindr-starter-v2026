@@ -189,9 +189,9 @@ Score! Snagged these vintage Levi's 501 jeans on depop for just $38, and they fi
 
 **Moment 2**
 
-- *What I asked for:* Explanation of the code I have
-- *What came back:* A detailed explanation explaining blocks of codes or functions i didn't understand
-- *What I changed:* I didn't change anything
+- *What I asked for:* I gave Claude my MCP tool description for `search_listings` in `mcp_server.py` and asked it to check that against the code.
+- *What came back:* It found that my description said results were sorted "cheaper first among equal matches", but `tools.py::search_listings` only sorts by keyword score, so listings with the same score stay in catalog order. It also pointed out that I hadn't stated the 10-result limit.
+- *What I changed:* I removed the false price-ordering claim, said that listings with the same score keep catalog order, added "at most 10", and fixed the typos.
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
      Don't fill these in during unit 3.
