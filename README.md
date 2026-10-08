@@ -405,7 +405,7 @@ behaved differently afterwards. If the rewire didn't work, say exactly where it
 broke — the error text and the last thing that worked. That earns the point in
 full. -->
 
-I registered search_listings in mcp_server.py with a description and typed inputs, and the agent now calls it through call_tool instead of directly. Nothing changed. Over MCP, "graphic tee" under $30 gave the same 6 results as the direct call, and an empty search still returns [].
+I registered search_listings in mcp_server.py with a description and typed inputs, and the agent now calls it through call_tool instead of directly. Nothing changed. Over MCP, "graphic tee" under $30 gave the same 6 results as the direct call, and an empty search still returns []. One thing did behave differently from what the trace said: before the tool was registered, `agent.py::_search` quietly fell back to the direct call when MCP failed, while the trace still printed "search_listings (via MCP)". So my earlier Sample Run says "via MCP" but really used the direct call.
 
 ---
 
@@ -470,6 +470,15 @@ Before the change, the same failure printed `[4] model unavailable` with no inpu
 <!-- For each criterion still missed: what you'd do, and why you stopped where
      you did. "I ran out of time" is fine if it's true. Pretending nothing is
      left is not. -->
+
+**No criterion is still missed in the after-run, but criterion 3 isn't really fixed.** It passed 5/5 because the model didn't return a 503 this time. If the service has another high-demand spike, the run still stops at `suggest_outfit`. My change only makes that failure leave evidence, not recover from it. What I'd do next is retry once or twice with a short wait when `generate()` gets a 503, before raising `ModelUnavailable`, because a 503 says "try again later." I stopped there because the milestone allows one change, and my diagnosis named the missing evidence, not the outage.
+
+**Criterion 4 is weaker than its 5/5 suggests.** Every try used the same item, the Denim Jacket at $42, so it only shows the model copies that one price. I'd rerun it across 5 different items with different prices. I didn't, because changing the scenario after seeing results would make the before and after logs not comparable.
+
+**Things I saw outside the five criteria:**
+- **Ranking picks the wrong kind of item.** `'black combat boots' --empty-wardrobe` returned an Oversized Flannel Shirt as the top result, because `tools.py::search_listings` scores by shared keywords and "black" matched. Nothing weights the item type, like "boots", above a colour. I'd give category words more weight. I left it because none of my criteria test ranking quality.
+- **The MCP fallback hides failures.** `agent.py::_search` falls back to the direct call on any MCP error, but the trace still says "(via MCP)". I'd label the step "(direct, MCP failed)" in that case. I left it because it isn't one of my criteria and the fallback is part of the starter design.
+- **The parser misses words it doesn't know.** As noted under Planning Loop, "nothing over thirty dollars" gives no price at all, so the price filter is skipped without any warning.
 
 
 
