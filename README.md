@@ -274,12 +274,42 @@ that produced it:
 **Happy path**
 
 ```
+$ python app.py ask 'vintage denim jacket under $50' --trace
+[1] parse_query
+      in:  vintage denim jacket under $50
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: 10 items: Denim Jacket — Light Wash, Cropped, Vintage Levi's 501 Jeans — Medium Wash, 90s Track Jacket — Navy/White Stripe … +7 more
+      →    10 match(es)
+[3] select_item
+      out: Denim Jacket — Light Wash, Cropped ($42.0, poshmark)
+[4] suggest_outfit
+      in:  Denim Jacket — Light Wash, Cropped ($42.0, poshmark)
+      out: Hey friend! That cropped Wrangler jacket is such a fun find. Here are two easy ways to style it using what's a…
+      →    10 wardrobe item(s)
+[5] create_fit_card
+      in:  Denim Jacket — Light Wash, Cropped ($42.0, poshmark)
+      out: Just scored this vintage cropped Wrangler denim jacket on Poshmark for only $42, and I am already obsessed wit…
 
 ```
 
 **Empty search**
 
 ```
+$ python app.py ask 'sequined astronaut ballgown under $5' --trace
+[1] parse_query
+      in:  sequined astronaut ballgown under $5
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: [] (empty)
+      →    0 match(es)
+[3] branch
+      →    search returned []: stopping before suggest_outfit
+
+  Nothing in the listings matched description 'sequined astronaut ballgown', under $5.
+Things to change: try broader words — 'jacket' finds more than 'cropped corduroy jacket'; raise the price ceiling above $5.
 
 ```
 
@@ -288,7 +318,7 @@ behaved differently afterwards. If the rewire didn't work, say exactly where it
 broke — the error text and the last thing that worked. That earns the point in
 full. -->
 
-
+I registered search_listings in mcp_server.py with a description and typed inputs, and the agent now calls it through call_tool instead of directly. Nothing changed. Over MCP, "graphic tee" under $30 gave the same 6 results as the direct call, and an empty search still returns [].
 
 ---
 
