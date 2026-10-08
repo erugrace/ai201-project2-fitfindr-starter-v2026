@@ -212,17 +212,98 @@ Score! Snagged these vintage Levi's 501 jeans on depop for just $38, and they fi
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. A matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. An impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. `selected_item` is the item `suggest_outfit` received | 5 of 5 | PASS | PASS | PASS | FAIL | PASS | MISSED (4/5) |
+| 4. The fit card includes the exact price | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. A size "S" query returns no XL / US 9 / W30 sizes | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+
+Full output: `results/run_2026-10-07_2252_before.md`, written by `run_eval.py::main`, from `python run_eval.py --label before` (5 tries per scenario, caching off).
 
 **Real output from one try**, pasted as text, naming the file and function
 that produced it:
 
+**Criterion 1**: "matching query completes", try 1. Trace from `agent.py::run_agent`, fit card from `tools.py::create_fit_card`:
+
+```
+[1] parse_query
+      in:  vintage graphic tee under $30
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey … +7 more
+      →    10 match(es)
+[3] select_item
+      out: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+[4] suggest_outfit
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      out: Here are two cute, easy ways to style your new Y2K baby tee!  **Outfit 1: Casual & Classic** Pair the baby tee…
+      →    10 wardrobe item(s)
+[5] create_fit_card
+      in:  Y2K Baby Tee — Butterfly Print ($18.0, depop)
+      out: I scored this adorable Y2K baby tee with a butterfly print on depop for just $18, and I am obsessed with how v…
+
+Fit card:
+I scored this adorable Y2K baby tee with a butterfly print on depop for just $18, and I am obsessed with how versatile it is! For a classic casual vibe, I paired it with baggy dark-wash jeans and a vintage black denim jacket, but it looks equally cute layered over khaki trousers with combat boots for a softer, edgy contrast.
 ```
 
+**Criterion 2**: "impossible query stops early", try 1. Trace and `session["error"]` from `agent.py::run_agent`:
+
+```
+[1] parse_query
+      in:  designer ballgown size XXS under $5
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: [] (empty)
+      →    0 match(es)
+[3] branch
+      →    search returned []: stopping before suggest_outfit
+
+session["error"]:
+Nothing in the listings matched description 'designer ballgown', size XXS, under $5.
+Things to change: try broader words — 'jacket' finds more than 'cropped corduroy jacket'; drop the size, or try a neighbouring one; raise the price ceiling above $5.
+```
+
+**Criterion 3**: "selected item reaches suggest_outfit", try 4 (the FAIL). Trace and `session["error"]` from `agent.py::run_agent`:
+
+```
+[1] parse_query
+      in:  90s track jacket
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: 10 items: 90s Track Jacket — Navy/White Stripe, 90s Leather Bomber — Black, Denim Jacket — Light Wash, Cropped … +7 more
+      →    10 match(es)
+[3] select_item
+      out: 90s Track Jacket — Navy/White Stripe ($45.0, poshmark)
+[4] model unavailable
+      →    stopping, search results kept
+
+session["error"]:
+The model couldn't be reached, so the outfit and caption steps didn't run. The search worked — 10 listing(s) were found. Check GEMINI_API_KEY in your .env, then run the same query again.
+What the service said: Couldn't reach the model: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+```
+
+**Criterion 4**: "fit card includes exact price", try 1. `session["fit_card"]` from `tools.py::create_fit_card` (selected item: Denim Jacket — Light Wash, Cropped, $42.0, poshmark):
+
+```
+I just scored this vintage Wrangler denim jacket on Poshmark for only $42, and I am already obsessed with the light wash and cropped fit! I went for a casual, streetwear-inspired vibe by throwing it over a white ribbed tank with baggy dark-wash jeans and chunky sneakers for the ultimate double denim look.
+```
+
+**Criterion 5**: "size S filter excludes other sizes", try 1. Trace from `agent.py::run_agent`, with sizes of all 4 results from `tools.py::search_listings` (called via `mcp_client.call_tool`):
+
+```
+[1] parse_query
+      in:  vintage graphic tee under $30, size S
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: 4 items: Y2K Baby Tee — Butterfly Print, Mesh Long-Sleeve Top — Black, Leather Belt — Brown, Braided … +1 more
+      →    4 match(es)
+
+All 4 results with their sizes:
+[('Y2K Baby Tee — Butterfly Print', 'S/M'), ('Mesh Long-Sleeve Top — Black', 'S/M'), ('Leather Belt — Brown, Braided', 'One Size (adjustable)'), ('Bucket Hat — Reversible, Brown Plaid', 'One Size')]
 ```
 
 ---
