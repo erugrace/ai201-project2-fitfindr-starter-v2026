@@ -328,13 +328,19 @@ All 4 results with their sizes:
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+| 1 | A matching query completes all three tools | 4 of 5 | MET (5/5) | All 5 tries reached `[5] create_fit_card` in the trace, and `session["fit_card"]` was a non-empty string each time. |
+| 2 | An impossible query stops before the second tool | 5 of 5 | MET (5/5) | All 5 traces end at `[3] branch` with no `suggest_outfit` step, and `session["error"]` says what to change (broader words, drop the size, raise the price). |
+| 3 | `selected_item` is the item `suggest_outfit` received | 5 of 5 | MISSED (4/5) | In tries 1, 2, 3 and 5, the item in `[3] select_item` and the `in:` of `[4] suggest_outfit` were the same (90s Track Jacket, $45.0, poshmark). In try 4 there is no `suggest_outfit` step, so there's no evidence of what it received, and a pass can't be claimed. |
+| 4 | The fit card includes the exact price | 4 of 5 | MET (5/5) | All 5 fit cards for the Denim Jacket ($42.0) contain "$42". |
+| 5 | A size "S" query returns no XL / US 9 / W30 sizes | 5 of 5 | MET (5/5) | All 4 results each time were sized S/M, S/M, One Size (adjustable) and One Size, and none was XL, US 9 or W30. |
 
 **Diagnoses**
+
+**Criterion 3, missed on 1 of 5 (try 4). Place: the model, not the session.** In try 4, `suggest_outfit` called the Gemini model through `generate()`, and the service returned `503 UNAVAILABLE: This model is currently experiencing high demand`. `generate()` raised `ModelUnavailable`, and `agent.py::run_agent` caught it and stopped with the "model couldn't be reached" message. Step `[3] select_item` still shows the right item (90s Track Jacket, $45.0, poshmark), so the session held the correct value. But the `suggest_outfit` trace step is only written *after* the tool returns, so when the call raised, the step never appeared and its input was never recorded. The miss has two causes: the service was briefly unavailable, and my trace only logs a step's input after the step succeeds, so a failed call leaves no evidence of what it was given. The session worked; the evidence for it didn't survive the model error.
+
+**Pattern.** The only failure across all 30 tries came from the model service being unavailable. It's the same "model unavailable" failure mode I triggered on purpose with a bad key, and the agent handled it the same way: no crash, a clear message, and the search results kept. Nothing failed in `search_listings`, the empty-search branch or the session. Those parts use no model, and they held 5 of 5 every time.
+
+**Were my targets too low?** Criteria 1 and 4 targeted 4 of 5 and both got 5 of 5, so they had room to spare. Criterion 4 is the one I'd tighten. It only ever tested one item, the Denim Jacket at $42, so 5 of 5 shows the model copies that one price reliably, not that it does so for any item. A stricter version would run 5 *different* items, each with a different price, at 5 of 5.
 
 
 
