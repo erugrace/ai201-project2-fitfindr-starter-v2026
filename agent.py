@@ -145,6 +145,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     """
     session = new_session(query, wardrobe)
     steps = 0
+    calling = None  # the model-calling tool in progress, named if it fails
 
     # ⚠️ UNIT 4, MILESTONE 2 — everything in the try/except is unit 3 code; the
     # handler around it is what unit 4 adds, so that a bad key produces a
@@ -183,6 +184,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
 
         steps += 1
         trace.check_iterations(steps)
+        calling = "suggest_outfit"
         session["outfit_suggestion"] = suggest_outfit(
             session["selected_item"], session["wardrobe"]
         )
@@ -195,6 +197,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
 
         steps += 1
         trace.check_iterations(steps)
+        calling = "create_fit_card"
         session["fit_card"] = create_fit_card(
             session["outfit_suggestion"], session["selected_item"]
         )
@@ -212,7 +215,13 @@ def run_agent(query: str, wardrobe: dict) -> dict:
             f"Check GEMINI_API_KEY in your .env, then run the same query "
             f"again.\nWhat the service said: {exc}"
         )
-        trace.step("model unavailable", note="stopping, search results kept")
+        # The tool's own step is only written after it returns, so record here
+        # which tool failed and what it was given, or the evidence is lost.
+        trace.step(
+            f"model unavailable during {calling}",
+            inputs=session["selected_item"],
+            note="stopping, search results kept",
+        )
 
     return session
 

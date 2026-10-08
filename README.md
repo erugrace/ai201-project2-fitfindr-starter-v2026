@@ -416,21 +416,47 @@ I registered search_listings in mcp_server.py with a description and typed input
 
      `python run_eval.py --label after` -->
 
-**What I changed:**
+**What I changed:** In `agent.py::run_agent`, a `calling` variable now records which model-calling tool is in progress (`suggest_outfit` or `create_fit_card`). When the model fails, the `ModelUnavailable` handler writes a trace step named `model unavailable during <tool>` with the item that tool was given as its input. Before, that step was just `model unavailable` with no input.
 
-**Which failure it was meant to fix:**
+**Which failure it was meant to fix:** Criterion 3, try 4. The model returned a 503, and because the `suggest_outfit` trace step is only written after the tool returns, there was no record of what `suggest_outfit` received, so the try couldn't pass. My diagnosis found the session was fine and the evidence was lost, so the fix keeps the evidence when a call fails. I didn't try to stop the 503, which is the service's problem and not mine.
 
 ### Run Log — After
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. A matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. An impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. `selected_item` is the item `suggest_outfit` received | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. The fit card includes the exact price | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. A size "S" query returns no XL / US 9 / W30 sizes | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+
+Full output: `results/run_2026-10-07_2314_after.md`, written by `run_eval.py::main`, from `python run_eval.py --label after` (5 tries per scenario, caching off).
+
+**Before and after, side by side** (the full before log is under Run Log — Before):
+
+| Criterion | Target | Before | After | Changed? |
+|---|---|---|---|---|
+| 1. A matching query completes all three tools | 4 of 5 | MET (5/5) | MET (5/5) | No |
+| 2. An impossible query stops before the second tool | 5 of 5 | MET (5/5) | MET (5/5) | No |
+| 3. `selected_item` is the item `suggest_outfit` received | 5 of 5 | MISSED (4/5): try 4 FAIL, model 503 | MET (5/5) | Yes, but no 503 happened in the after-run (see below) |
+| 4. The fit card includes the exact price | 4 of 5 | MET (5/5) | MET (5/5) | No |
+| 5. A size "S" query returns no XL / US 9 / W30 sizes | 5 of 5 | MET (5/5) | MET (5/5) | No |
 
 **Did it help, and how do I know:**
+
+Criterion 3 went from 4/5 to 5/5, but **that is not proof my change worked.** In the after-run the model never returned a 503, so every try took the normal path and the new code never ran. The 5/5 comes from the service being up, not from my fix. The happy-path traces are the same as before, so the change didn't break anything.
+
+To check the fix itself, I made `suggest_outfit` raise the same `ModelUnavailable` error a 503 causes and ran the criterion 3 query. The trace now names the tool that failed and the item it was given:
+
+```
+[3] select_item
+      out: 90s Track Jacket — Navy/White Stripe ($45.0, poshmark)
+[4] model unavailable during suggest_outfit
+      in:  90s Track Jacket — Navy/White Stripe ($45.0, poshmark)
+      →    stopping, search results kept
+```
+
+Before the change, the same failure printed `[4] model unavailable` with no input. So a run like the before-run's try 4 now leaves the evidence needed to check criterion 3, even though the outfit step didn't finish.
 
 <!-- If it made things worse, say that. Honestly reported, that earns full
      credit and is more interesting than one that worked. -->
